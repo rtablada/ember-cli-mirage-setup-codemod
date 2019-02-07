@@ -1,17 +1,17 @@
 {
-  "name": "ember-cli-mirage-faker-codemod",
-  "version": "1.0.4",
-  "description": "",
+  "name": "ember-cli-mirage-setup-codemod",
+  "version": "1.0.0",
+  "description": "This codemod will update tests for ember-cli-mirage with setup for Ember Tests.",
   "main": "transform.js",
   "bin": {
-    "ember-cli-mirage-faker-codemod": "./bin/cli"
+    "ember-cli-mirage-setup-codemod": "./bin/cli"
   },
   "scripts": {
     "test": "jest",
     "codemod": "jscodeshift -t transform.js"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Ryan Tablada <ryan.tablada@gmail.com>",
+  "license": "MIT",
   "dependencies": {
     "babel": "^6.23.0",
     "jest": "^23.5.0",

@@ -4,102 +4,73 @@ export default function transformer (file, api) {
   const root = j(file.source)
 
   // "main"
-  if (hasAnyFakerImports(root)) { // if faker isn't used in this file, skip it
-    if (importsAnythingFromFakerAlready(root)) {
-      insertIntoFaker(root)
-    } else {
-      insertFakerAfterMirage(root)
-    }
-    removeFakerFromMirage(root)
+  if (doesNotHaveImportAlready(root) && usesServerGlobal(root)) { // if faker isn't used in this file, skip it
+    insertSetupMirageImportAfterSetupApplicationTest(root)
+    insertSetupMirageCallAfterSetupApplicationTest(root)
   }
 
   return root.toSource({quote: 'single'})
 
   // global checks
-  function importsAnythingFromFakerAlready (root) {
+  function usesServerGlobal (root) {
     return root
+      .find(j.MemberExpression)
+      .some(isUsingServerGlobal)
+  }
+
+  function doesNotHaveImportAlready(root) {
+    return ! root
       .find(j.ImportDeclaration)
-      .some(isImportingFromFaker)
+      .filter(path => path.node.source.value === 'ember-cli-mirage/test-support/setup-mirage')
+      .some(() => true)
   }
 
-  function hasAnyFakerImports (root) {
-    return root
-      .find(j.ImportSpecifier)
-      .some(isImportingFaker)
-  }
-
-  // manipulations
-  function insertIntoFaker (root) {
-    root
-      .find(j.ImportDeclaration)
-      .filter(isImportingFromFaker)
-      .forEach(path => {
-        insertSpecifier(path, fakerSpecifier())
-      })
-  }
-
-  function insertFakerAfterMirage (root) {
+  function insertSetupMirageImportAfterSetupApplicationTest (root) {
     root
       .find(j.ImportDeclaration)
       .filter(path => {
-        return path.node.source.value === 'ember-cli-mirage'
+        return path.node.source.value === 'ember-qunit' || path.node.source.value === 'ember-mocha';
       })
-      .insertAfter(standardFakerImport())
-  }
-
-  function removeFakerFromMirage (root) {
-    root
-      .find(j.ImportSpecifier)
-      .forEach(path => {
-        if (isImportingFaker(path) && isImportingFromEmberCliMirage(path.parent)) {
-          removeSpecifierOrImportDeclaration(path)
-        }
-      })
+      .insertAfter(standardSetupMirageImport())
   }
 
   // node generation
-  function standardFakerImport () {
+  function standardSetupMirageImport () {
     return j.importDeclaration(
       [
         fakerSpecifier()
       ],
-      j.literal('faker')
+      j.literal('ember-cli-mirage/test-support/setup-mirage')
     )
   }
 
   function fakerSpecifier () {
-    return j.importSpecifier(j.identifier('faker'))
+    return j.importDefaultSpecifier(j.identifier('setupMirage'))
   }
 
-  // node checks - importSpecifierPath
-  function isImportingFaker (importSpecifierPath) {
-    return importSpecifierPath.node.imported.name === 'faker'
+  function insertSetupMirageCallAfterSetupApplicationTest (root) {
+    let setupTest = root
+      .find(j.CallExpression)
+      .filter(path => {
+        return path.node.callee.name === 'setupApplicationTest';
+      }).paths()[0];
+
+    debugger;
+    setupTest.parentPath.insertAfter(standardCallMirage())
   }
 
-  function isImportingFromEmberCliMirage (importSpecifierPath) {
-    return importSpecifierPath.node.source.value === 'ember-cli-mirage'
+  // node generation
+  function standardCallMirage () {
+    return j.expressionStatement(
+      j.callExpression(
+        j.identifier('setupMirage'),
+        [j.identifier('hooks')]
+      )
+    );
   }
 
-  function isImportingFromFaker (importSpecifierPath) {
-    return importSpecifierPath.node.source.value === 'faker'
-  }
-
-  // node checks - importDeclarationPath
-  function isOnlySpecifierInImportDeclaration (importDeclarationPath) {
-    return importDeclarationPath.node.specifiers.length === 1
-  }
-
-  // general utility
-  function removeSpecifierOrImportDeclaration (importSpecifierPath) {
-    const importDeclarationPath = importSpecifierPath.parent
-    if (isOnlySpecifierInImportDeclaration(importDeclarationPath)) {
-      j(importDeclarationPath).remove() // remove entire import declaration
-    } else {
-      j(importSpecifierPath).remove() // remove just the one specifier
-    }
-  }
-
-  function insertSpecifier (importDeclarationPath, specifier) {
-    importDeclarationPath.get('specifiers').push(specifier)
+  // node checks - memberExpression
+  function isUsingServerGlobal (memberExpression) {
+    return memberExpression.node.object.name === 'server'
   }
 }
